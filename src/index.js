@@ -12,3 +12,11 @@ function addSomething(){
     const container = document.getElementById('container');
     container.appendChild(someDummyDiv);
 }
+
+const diffButton = document.getElementById('demoButton')
+const inputTA = document.getElementById('input_text')
+const resText = document.getElementById('result')
+
+diffButton.addEventListener('click', function() {
+    resText.innerText = inputTA.value
+});
