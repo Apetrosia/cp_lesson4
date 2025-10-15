@@ -1,202 +1,216 @@
+class Term {
+    constructor(coefficient = 1, variable = null, power = 0) {
+        this.coefficient = coefficient;
+        this.variable = variable;
+        this.power = power;
+    }
+
+
+    differentiate(variable) {
+
+
+        if (this.variable !== variable)
+            return new Term(0, null, 0);
+        
+        if (this.power === 0)
+            return new Term(0, null, 0);
+        
+        if (this.power === 1)
+            return new Term(this.coefficient, null, 0);
+        
+        const newCoeff = this.coefficient * this.power;
+        const newPower = this.power - 1;
+        
+        return new Term(newCoeff, variable, newPower);
+    }
+    
+    isSimilar(other) {
+        return this.variable === other.variable && this.power === other.power;
+    }
+    
+    add(other) {
+        if (!this.isSimilar(other)) {
+            throw new Error('Нельзя складывать неподобные термы');
+        }
+        return new Term(
+            this.coefficient + other.coefficient,
+            this.variable,
+            this.power
+        );
+    }
+    
+    toString(useAbsoluteValue = false) {
+
+        if (this.coefficient === 0)
+            return '0';
+        
+        const coeff = useAbsoluteValue ? Math.abs(this.coefficient) : this.coefficient;
+        
+        if (!this.variable || this.power === 0)
+            return coeff.toString();
+        
+        let result = '';
+        
+        result = coeff.toString() + '*';
+        
+        result += this.variable;
+        
+        if (this.power !== 1)
+            result += '^' + this.power;
+        
+        return result;
+    }
+}
+
+
 class MiniMaple {
+    
+    parseExpression(expression, variable) {
+        const terms = [];
+        
+        let current = '';
+        let sign = 1;
+        
+        for (let i = 0; i < expression.length; i++) {
+            const char = expression[i];
+            
+            if (char === '+' || char === '-') {
+                if (current.trim()) {
+                    terms.push(this.parseTerm(current.trim(), variable, sign));
+                    current = '';
+                }
+                sign = char === '+' ? 1 : -1;
+            } else if (char !== ' ')
+                current += char;
+        }
+        
+        if (current.trim())
+            terms.push(this.parseTerm(current.trim(), variable, sign));
+        
+        return terms;
+    }
+    
+    parseTerm(termStr, variable, sign) {
+        termStr = termStr.trim();
+        
+        let coefficient = sign;
+        let power = 0;
+        let hasVariable = termStr.includes(variable);
+        
+        if (!hasVariable) {
+            coefficient = sign * parseFloat(termStr);
+            return new Term(coefficient, null, 0);
+        }
+        
+        const parts = termStr.split(variable);
+        
+        if (parts[0]) {
+            const coeffStr = parts[0].replace(/\*/g, '').trim();
+            if (coeffStr && coeffStr !== '+' && coeffStr !== '-') {
+                coefficient = sign * parseFloat(coeffStr);
+            }
+        }
+        
+        if (parts[1]) {
+            const powerPart = parts[1].trim();
+            if (powerPart.startsWith('^'))
+                power = parseFloat(powerPart.substring(1));
+            else
+                power = 1;
+        } else
+            power = 1;
+        
+        return new Term(coefficient, variable, power);
+    }
+    
+    combineTerms(terms) {
+        const combined = [];
+        
+        for (const term of terms) {
+            if (term.coefficient === 0)
+                continue;
+            
+            let found = false;
+            for (let i = 0; i < combined.length; i++) {
+                if (combined[i].isSimilar(term)) {
+                    combined[i] = combined[i].add(term);
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                combined.push(term);
+            }
+        }
+        
+        const filtered = combined.filter(t => t.coefficient !== 0);
+        
+        filtered.sort((a, b) => b.power - a.power);
+        
+        return filtered;
+    }
+    
+    termsToString(terms) {
+        if (terms.length === 0)
+            return '0';
+        
+        let result = '';
+        
+        for (let i = 0; i < terms.length; i++) {
+            if (i === 0)
+                result = terms[i].toString();
+            else {
+                if (terms[i].coefficient < 0)
+                    result += ' - ' + terms[i].toString(true);
+                else
+                    result += ' + ' + terms[i].toString();
+            }
+        }
+        
+        return result;
+    }
+    
+    differentiate(input) {
+        const validation = this.validate(input);
+        if (!validation.valid)
+            return validation.error;
+        
+        const parts = input.split(',').map(s => s.trim());
+        const [expression, variable] = parts;
+        
+        const terms = this.parseExpression(expression, variable);
+        
+        const diffTerms = terms.map(term => term.differentiate(variable));
+        
+        const combined = this.combineTerms(diffTerms);
+        
+        return this.termsToString(combined);
+    }
+    
     validate(input) {
         if (!input || typeof input !== 'string')
             return { valid: false, error: 'Пустой ввод' };
 
+
         const parts = input.split(',').map(s => s.trim());
         if (parts.length !== 2)
             return { valid: false, error: 'Формат: "выражение, переменная"' };
+
 
         const [expression, variable] = parts;
         
         if (!/^[a-zA-Z]$/.test(variable))
             return { valid: false, error: 'Переменная должна быть одной буквой' };
 
+
         if (!/^[a-zA-Z0-9+\-*^\s.]+$/.test(expression))
             return { valid: false, error: 'Недопустимые символы в выражении' };
 
-        return { valid: true, expression, variable };
-    }
 
-    differentiate(input) {
-        const validation = this.validate(input);
-        if (!validation.valid)
-            return validation.error
-
-        const { expression, variable } = validation;
-        
-        const terms = this.parseTerms(expression);
-        
-        const derivatives = terms.map(term => this.differentiateTerm(term, variable));
-        
-        const simplified = this.simplify(derivatives, variable);
-        
-        return simplified;
-    }
-
-    parseTerms(expression) {
-        const terms = [];
-        let current = '';
-        
-        for (let i = 0; i < expression.length; i++) {
-            const char = expression[i];
-            
-            if ((char === '+' || char === '-') && i > 0) {
-                terms.push(current.trim());
-                current = char === '-' ? '-' : '';
-            } else
-                current += char;
-        }
-        
-        if (current) terms.push(current.trim());
-        return terms.filter(t => t.length > 0);
-    }
-
-    differentiateTerm(term, variable) {
-        term = term.trim();
-        
-        if (/^-?\d+\.?\d*$/.test(term))
-            return { coefficient: 0, power: 0 };
-        
-        const factors = this.parseFactors(term);
-        
-        return this.productRule(factors, variable);
-    }
-
-    parseFactors(term) {
-        const factors = [];
-        let current = '';
-        
-        for (let i = 0; i < term.length; i++) {
-            const char = term[i];
-            
-            if (char === '*') {
-                if (current.trim()) factors.push(current.trim());
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        
-        if (current.trim()) factors.push(current.trim());
-        return factors;
-    }
-
-    productRule(factors, variable) {
-        if (factors.length === 0) return { coefficient: 0, power: 0 };
-        
-        let coefficient = 1;
-        let power = 0;
-        let hasVariable = false;
-        
-        for (const factor of factors) {
-            const parsed = this.parseFactor(factor, variable);
-            coefficient *= parsed.coefficient;
-            power += parsed.power;
-            hasVariable = hasVariable || parsed.hasVariable;
-        }
-        
-        if (!hasVariable) {
-            return { coefficient: 0, power: 0 };
-        }
-        
-        return {
-            coefficient: coefficient * power,
-            power: power - 1
-        };
-    }
-
-    parseFactor(factor, variable) {
-        factor = factor.trim();
-        
-        const num = parseFloat(factor);
-        if (!isNaN(num) && factor === num.toString())
-            return { coefficient: num, power: 0, hasVariable: false };
-        
-        const powerMatch = factor.match(new RegExp(`^(-?\\d*\\.?\\d*)\\*?${variable}\\^(-?\\d+)$`));
-        if (powerMatch) {
-            const coef = powerMatch[1] === '' || powerMatch[1] === '-' 
-                ? (powerMatch[1] === '-' ? -1 : 1)
-                : parseFloat(powerMatch[1]);
-            return {
-                coefficient: coef,
-                power: parseInt(powerMatch[2]),
-                hasVariable: true
-            };
-        }
-        
-        const varMatch = factor.match(new RegExp(`^(-?\\d*\\.?\\d*)\\*?${variable}$`));
-        if (varMatch) {
-            const coef = varMatch[1] === '' || varMatch[1] === '-'
-                ? (varMatch[1] === '-' ? -1 : 1)
-                : parseFloat(varMatch[1]);
-            return {
-                coefficient: coef,
-                power: 1,
-                hasVariable: true
-            };
-        }
-        
-        if (!factor.includes(variable)) {
-            const coef = parseFloat(factor);
-            return {
-                coefficient: isNaN(coef) ? 1 : coef,
-                power: 0,
-                hasVariable: false
-            };
-        }
-        
-        return { coefficient: 1, power: 1, hasVariable: true };
-    }
-
-    simplify(derivatives, variable) {
-        const grouped = {};
-        
-        for (const derivative of derivatives) {
-            if (derivative.coefficient === 0) continue;
-            
-            const power = derivative.power || 0;
-            if (!grouped[power]) {
-                grouped[power] = 0;
-            }
-            grouped[power] += derivative.coefficient;
-        }
-        
-        const terms = [];
-        const powers = Object.keys(grouped).map(Number).sort((a, b) => b - a);
-        
-        for (const power of powers) {
-            const coef = grouped[power];
-            if (Math.abs(coef) < 1e-10) continue;
-            
-            terms.push(this.formatTerm(coef, power, variable));
-        }
-        
-        if (terms.length === 0) return '0';
-        
-        return terms.join(' ')
-            .replace(/\+ -/g, '- ')
-            .replace(/^\+ /, '');
-    }
-
-    formatTerm(coefficient, power, variable) {
-        const sign = coefficient >= 0 ? '+ ' : '- ';
-        const absCoef = Math.abs(coefficient);
-        
-        if (power === 0) {
-            return `${sign}${absCoef}`;
-        } else if (power === 1) {
-            if (absCoef === 1) {
-                return `${sign}${variable}`;
-            }
-            return `${sign}${absCoef}*${variable}`;
-        } else {
-            if (absCoef === 1) {
-                return `${sign}${variable}^${power}`;
-            }
-            return `${sign}${absCoef}*${variable}^${power}`;
-        }
+        return { valid: true };
     }
 }
+
 
 export { MiniMaple }
