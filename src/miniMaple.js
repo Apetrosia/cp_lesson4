@@ -5,9 +5,7 @@ class Term {
         this.power = power;
     }
 
-
     differentiate(variable) {
-
 
         if (this.variable !== variable)
             return new Term(0, null, 0);
@@ -62,7 +60,6 @@ class Term {
     }
 }
 
-
 class MiniMaple {
     
     parseExpression(expression, variable) {
@@ -106,9 +103,8 @@ class MiniMaple {
         
         if (parts[0]) {
             const coeffStr = parts[0].replace(/\*/g, '').trim();
-            if (coeffStr && coeffStr !== '+' && coeffStr !== '-') {
+            if (coeffStr && coeffStr !== '+' && coeffStr !== '-')
                 coefficient = sign * parseFloat(coeffStr);
-            }
         }
         
         if (parts[1]) {
@@ -139,9 +135,8 @@ class MiniMaple {
                 }
             }
             
-            if (!found) {
+            if (!found)
                 combined.push(term);
-            }
         }
         
         const filtered = combined.filter(t => t.coefficient !== 0);
